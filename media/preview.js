@@ -257,13 +257,20 @@
 
   let editing = null;
 
+  // data-raw が無い場合のフォールバック: 表示HTMLから<br>を改行に戻したテキストを得る
+  function cellRawText(cell) {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = cell.innerHTML.replace(/<br\s*\/?>/gi, '\n');
+    return tmp.textContent;
+  }
+
   function startEdit(cell) {
     const tr = cell.parentElement;
     if (!tr || tr.classList.contains('mdt-filter-row')) return;
     const line = lineOf(cell);
     if (line < 0) return;
     const col = colOf(cell);
-    const src = cell.dataset.raw !== undefined ? cell.dataset.raw : cell.textContent;
+    const src = cell.dataset.raw !== undefined ? cell.dataset.raw : cellRawText(cell);
     const raw = src.replace(/<br\s*\/?>/gi, '\n');
     if (editing) editing.commit();
 
