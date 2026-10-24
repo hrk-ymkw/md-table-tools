@@ -471,6 +471,8 @@
     (e) => {
       if (menu && menu.contains(e.target)) return; // メニュー内クリックはボタン側で処理
       closeMenu();
+      // 表の外をクリックしたら選択解除（青い枠を消す）
+      if (!e.target.closest('table.mdt')) setSelected(null);
       const th = e.target.closest('th');
       if (th) {
         const table = th.closest('table');
