@@ -322,6 +322,23 @@
     }
   }
 
+  // Tab移動先。行端では次/前の表示行の端へ折り返す
+  function tabNext(cell, dir) {
+    let next = cellAt(cell, dir, 0);
+    if (!next) {
+      const table = cell.closest('table');
+      const rows = Array.from(table.rows);
+      const idx = rows.indexOf(cell.parentElement);
+      for (let i = idx + dir; i >= 0 && i < rows.length; i += dir) {
+        const r = rows[i];
+        if (r.classList.contains('mdt-filter-row') || r.style.display === 'none') continue;
+        next = dir < 0 ? r.cells[r.cells.length - 1] : r.cells[0];
+        break;
+      }
+    }
+    return next;
+  }
+
   // data-raw が無い場合のフォールバック: 表示HTMLから<br>を改行に戻したテキストを得る
   function cellRawText(cell) {
     const tmp = document.createElement('div');
@@ -390,19 +407,7 @@
       else if (e.key === 'Tab') {
         // 確定して隣接セルの編集へ。行端では次/前の表示行の端へ折り返す
         e.preventDefault();
-        const dir = e.shiftKey ? -1 : 1;
-        let next = cellAt(cell, dir, 0);
-        if (!next) {
-          const table = cell.closest('table');
-          const rows = Array.from(table.rows);
-          const idx = rows.indexOf(cell.parentElement);
-          for (let i = idx + dir; i >= 0 && i < rows.length; i += dir) {
-            const r = rows[i];
-            if (r.classList.contains('mdt-filter-row') || r.style.display === 'none') continue;
-            next = e.shiftKey ? r.cells[r.cells.length - 1] : r.cells[0];
-            break;
-          }
-        }
+        const next = tabNext(cell, e.shiftKey ? -1 : 1);
         finish(true);
         if (next) startEdit(next);
       }
@@ -563,6 +568,13 @@
     if (e.key === 'Enter' && selectedCell && !editingCell) {
       e.preventDefault();
       startEdit(selectedCell);
+      return;
+    }
+    // 非編集中のTabは選択移動だけ（編集中のTab移動はtextarea側が担当）
+    if (e.key === 'Tab' && selectedCell && !editingCell) {
+      e.preventDefault();
+      const next = tabNext(selectedCell, e.shiftKey ? -1 : 1);
+      if (next) setSelected(next);
     }
   });
 
