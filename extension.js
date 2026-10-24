@@ -157,7 +157,9 @@ async function openPreview(context) {
       lineCount: doc.lineCount,
       scrollPreviewWithEditor: true,
       scrollPreviewBeyondEditorLine: true,
-      doubleClickToSwitchToEditor: true,
+      doubleClickToSwitchToEditor: vscode.workspace
+        .getConfiguration('markdown.preview')
+        .get('doubleClickToSwitchToEditor', true),
       disableSecurityWarnings: true,
       fragment: null,
       lineChanges: null,
