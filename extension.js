@@ -79,6 +79,13 @@ function collectPreviewContrib(context) {
   return { entries, roots };
 }
 
+function getNonce() {
+  let text = '';
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  for (let i = 0; i < 32; i++) text += chars.charAt(Math.floor(Math.random() * chars.length));
+  return text;
+}
+
 async function renderDoc(doc) {
   const html = await vscode.commands.executeCommand('markdown.api.render', doc.getText());
   return html;
@@ -138,9 +145,15 @@ async function openPreview(context) {
     const contribStyles = contrib.entries
       .flatMap((e) => e.styles.map((rel) => `<link href="${extUri(e.extUri, rel)}" rel="stylesheet">`))
       .join('\n');
+    // script-src はnonceのみ許可。文書内の<script src>を fixResourceSrc が
+    // webview URIへ書き換えても nonce が無いのでCSPが遮断する（標準プレビューと同じ方式）
+    const nonce = getNonce();
     const contribScripts = contrib.entries
       .flatMap((e) =>
-        e.scripts.map((s) => `<script${s.module ? ' type="module"' : ''} src="${extUri(e.extUri, s.path)}"></script>`)
+        e.scripts.map(
+          (s) =>
+            `<script${s.module ? ' type="module"' : ''} nonce="${nonce}" src="${extUri(e.extUri, s.path)}"></script>`
+        )
       )
       .join('\n');
     const csp = panel.webview.cspSource;
@@ -178,7 +191,7 @@ async function openPreview(context) {
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${csp} https: data:; font-src ${csp} data:; style-src ${csp} 'unsafe-inline'; script-src ${csp};">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${csp} https: data:; font-src ${csp} data:; style-src ${csp} 'unsafe-inline'; script-src 'nonce-${nonce}';">
 ${contribStyles}
 <link href="${mediaUri('preview.css')}" rel="stylesheet">
 <title>Markdown Table Preview</title>
@@ -186,7 +199,7 @@ ${contribStyles}
 <body class="${bodyClass}">
 <div id="vscode-markdown-preview-data" data-settings='${settingsJson}' data-state='${stateJson}' data-initial-md-content='${initialContent}' style="display:none"></div>
 <div id="mdt-body"></div>
-<script src="${mediaUri('preview.js')}"></script>
+<script nonce="${nonce}" src="${mediaUri('preview.js')}"></script>
 ${contribScripts}
 </body>
 </html>`;
@@ -547,6 +560,10 @@ function stackFor(u) {
 // 編集操作
 // ---------------------------------------------------------------------------
 
+// URIハンドラ経由で許可するop（外部リンクから来る可能性があるため編集系に限定。
+// undo/redo/edit-state はwebview内専用）
+const URI_OPS = new Set(['ping', 'edit-cell', 'insert-row', 'delete-row', 'insert-col', 'delete-col']);
+
 async function handleOp(uri) {
   const q = new URLSearchParams(uri.query);
   const docUri = q.get('d');
@@ -554,6 +571,7 @@ async function handleOp(uri) {
   const doc = await vscode.workspace.openTextDocument(vscode.Uri.parse(docUri));
   const p = JSON.parse(q.get('p') || '{}');
   const op = uri.path.replace(/^\//, '');
+  if (!URI_OPS.has(op)) throw new Error('op not allowed via uri: ' + op);
   log('uri op=' + op + ' ' + JSON.stringify(p));
   await applyOp(doc, op, p);
   log('uri op done: ' + op);

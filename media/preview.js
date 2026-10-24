@@ -388,17 +388,18 @@
       if (e.key === 'Enter' && !e.shiftKey) finish(true);
       else if (e.key === 'Escape') finish(false);
       else if (e.key === 'Tab') {
-        // 確定して隣接セルの編集へ（Shift+Tabは左、行末は次の行頭）
+        // 確定して隣接セルの編集へ。行端では次/前の表示行の端へ折り返す
         e.preventDefault();
-        let next = cellAt(cell, e.shiftKey ? -1 : 1, 0);
-        if (!next && !e.shiftKey) {
+        const dir = e.shiftKey ? -1 : 1;
+        let next = cellAt(cell, dir, 0);
+        if (!next) {
           const table = cell.closest('table');
           const rows = Array.from(table.rows);
           const idx = rows.indexOf(cell.parentElement);
-          for (let i = idx + 1; i < rows.length; i++) {
+          for (let i = idx + dir; i >= 0 && i < rows.length; i += dir) {
             const r = rows[i];
             if (r.classList.contains('mdt-filter-row') || r.style.display === 'none') continue;
-            next = r.cells[0];
+            next = e.shiftKey ? r.cells[r.cells.length - 1] : r.cells[0];
             break;
           }
         }
