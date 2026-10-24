@@ -4,3 +4,4 @@
 *.vsix
 *.log
 node_modules/**
+tools/**

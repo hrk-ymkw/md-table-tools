@@ -5,6 +5,7 @@
   "version": "0.0.2",
   "publisher": "hrk-ymkw",
   "license": "MIT",
+  "icon": "images/icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/hrk-ymkw/md-table-tools"
