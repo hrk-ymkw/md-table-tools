@@ -1,0 +1,76 @@
+{
+  "name": "md-table-tools",
+  "displayName": "Markdown Table Tools",
+  "description": "Markdownテーブルを直接編集・ソート・絞り込みできるプレビューパネル",
+  "version": "0.0.1",
+  "publisher": "local",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "main": "./extension.js",
+  "activationEvents": [
+    "onUri"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "md-table-tools.openTablePreview",
+        "title": "テーブルプレビューを開く",
+        "icon": "$(table)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "md-table-tools.openTablePreview",
+        "key": "ctrl+alt+v",
+        "mac": "cmd+alt+v",
+        "when": "editorLangId == markdown"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "md-table-tools.openTablePreview",
+          "when": "resourceLangId == markdown",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "md-table-tools.openTablePreview",
+          "when": "resourceLangId == markdown",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Markdown Table Tools",
+      "properties": {
+        "mdTableTools.openIn": {
+          "type": "string",
+          "enum": ["active", "beside"],
+          "default": "active",
+          "description": "プレビューパネルの開き方 (active=全画面, beside=右側に分割)"
+        },
+        "mdTableTools.autoSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "編集操作のたびにファイルへ自動保存する"
+        }
+      }
+    },
+    "markdown.previewScripts": [
+      "./media/preview.js"
+    ],
+    "markdown.previewStyles": [
+      "./media/preview.css"
+    ],
+    "markdown.markdownItPlugins": true
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  }
+}
