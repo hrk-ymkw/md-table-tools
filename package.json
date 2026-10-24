@@ -2,7 +2,7 @@
   "name": "md-table-tools",
   "displayName": "Markdown Table Tools",
   "description": "Markdownテーブルを直接編集・ソート・絞り込みできるプレビューパネル",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "publisher": "hrk-ymkw",
   "license": "MIT",
   "icon": "images/icon.png",
