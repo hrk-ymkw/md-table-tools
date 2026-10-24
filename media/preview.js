@@ -287,6 +287,7 @@
     const raw = src.replace(/<br\s*\/?>/gi, '\n');
     if (editing) editing.commit();
     editingCell = cell; // DOM変更(空にする)より先に立てて enhance を止める
+    send('edit-state', { active: true }); // ホストへ編集中を通知（再描画を保留させる）
 
     const savedHtml = cell.innerHTML;
     cell.classList.add('mdt-editing');
@@ -310,6 +311,11 @@
       done = true;
       editing = null;
       editingCell = null;
+      // 別セルの編集がこの直後に始まる場合があるので、同期ではなく
+      // マイクロタスク後に「編集が続いていなければ」ホストへ再描画再開を通知する
+      setTimeout(() => {
+        if (!editingCell) send('edit-state', { active: false });
+      }, 0);
       const v = input.value.replace(/\r\n/g, '\n');
       const out = v.replace(/\n/g, '<br>');
       cell.classList.remove('mdt-editing');

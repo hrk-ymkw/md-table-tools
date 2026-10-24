@@ -228,6 +228,7 @@ ${contribScripts}
 
 async function sendUpdate() {
   if (!panel || !panelDocUri) return;
+  if (cellEditing) return; // セル編集中は再描画しない（textareaを壊さないため）
   try {
     const doc = await vscode.workspace.openTextDocument(panelDocUri);
     const html = fixResourceSrc(await renderDoc(doc), doc.uri, panel.webview);
@@ -406,6 +407,9 @@ function registerScrollSync(context) {
 // 編集opを直列化する（連続クリック等で複数opが並走すると
 // WorkspaceEdit の適用が衝突して applyEdit=false になるため）
 let opTail = Promise.resolve();
+// webview がセル編集中か（編集中は再描画メッセージを保留して
+// morphdom による textarea 破壊＝ちらつき/フォーカス喪失を防ぐ）
+let cellEditing = false;
 
 async function handleOpMsg(msg) {
   if (msg.op === 'ready') {
@@ -419,6 +423,11 @@ async function handleOpMsg(msg) {
   }
   if (msg.op === 'log') {
     log('[webview]', msg.text);
+    return;
+  }
+  if (msg.op === 'edit-state') {
+    cellEditing = !!(msg.p && msg.p.active);
+    if (!cellEditing && panel) sendUpdate(); // 編集中に保留した分をまとめて流す
     return;
   }
   log('op=' + msg.op + ' ' + JSON.stringify(msg.p));
