@@ -3,8 +3,12 @@
   "displayName": "Markdown Table Tools",
   "description": "Markdownテーブルを直接編集・ソート・絞り込みできるプレビューパネル",
   "version": "0.0.1",
-  "publisher": "local",
+  "publisher": "hrk-ymkw",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hrk-ymkw/md-table-tools"
+  },
   "engines": {
     "vscode": "^1.74.0"
   },

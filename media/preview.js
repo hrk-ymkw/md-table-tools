@@ -6,7 +6,7 @@
   if (window.__mdt) return;
   window.__mdt = true;
 
-  const EXT_ID = 'local.md-table-tools'; // publisher.name (URI fallback 用)
+  const EXT_ID = 'hrk-ymkw.md-table-tools'; // publisher.name (URI fallback 用)
   const states = new Map(); // tableIndex -> { sort:{col,dir}, filters:[], origRows:[] }
 
   // 標準プレビュー内かどうか: 自作パネルだけ #mdt-body を持つ
