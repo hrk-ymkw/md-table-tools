@@ -45,6 +45,13 @@
   outline-offset: -1px;
 }
 
+/* キーボード選択中のセル */
+.mdt td.mdt-selected,
+.mdt th.mdt-selected {
+  outline: 2px solid var(--vscode-focusBorder, #007acc);
+  outline-offset: -2px;
+}
+
 /* 標準プレビュー(閲覧のみ)では編集 affordance を消す */
 .mdt-readonly .mdt td {
   cursor: default;

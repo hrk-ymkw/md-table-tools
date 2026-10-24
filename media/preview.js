@@ -263,12 +263,64 @@
   function enhanceAll() {
     const list = Array.from(document.querySelectorAll('table'));
     list.forEach((t, i) => enhance(t, i));
+    restoreSelected();
   }
 
   // ---- cell edit ---------------------------------------------------------------
 
   let editing = null;
   let editingCell = null; // 編集中セル。この表の sort/filter/再刻印を停止するための目印
+  let selectedCell = null; // 矢印キー移動の選択セル
+  let selKey = null; // 再描画後に選択を復元するための {line, col}
+
+  function setSelected(cell, scroll = true) {
+    if (selectedCell) selectedCell.classList.remove('mdt-selected');
+    selectedCell = cell || null;
+    if (selectedCell) {
+      selectedCell.classList.add('mdt-selected');
+      selKey = { line: lineOf(selectedCell), col: colOf(selectedCell) };
+      if (scroll) selectedCell.scrollIntoView({ block: 'nearest' });
+    } else {
+      selKey = null;
+    }
+  }
+
+  // morphdom再描画で選択セルのDOMが置き換わったとき、行/列から選び直す
+  function restoreSelected() {
+    if (selectedCell && document.contains(selectedCell)) return;
+    selectedCell = null;
+    if (!selKey || selKey.line < 0) return;
+    for (const table of document.querySelectorAll('table.mdt')) {
+      const tb = table.tBodies[0];
+      if (!tb) continue;
+      for (const tr of tb.rows) {
+        const td = tr.cells[selKey.col];
+        if (td && lineOf(td) === selKey.line) {
+          setSelected(td, false);
+          return;
+        }
+      }
+    }
+  }
+
+  // dx/dy方向の隣接セル（フィルタ行・非表示行は飛ばす）
+  function cellAt(cell, dx, dy) {
+    const tr = cell.parentElement;
+    const table = cell.closest('table');
+    if (!tr || !table) return null;
+    const col = colOf(cell);
+    if (dx) return tr.cells[col + dx] || null;
+    const rows = Array.from(table.rows);
+    let i = rows.indexOf(tr);
+    while (true) {
+      i += dy;
+      if (i < 0 || i >= rows.length) return null;
+      const r = rows[i];
+      if (r.classList.contains('mdt-filter-row')) continue;
+      if (r.style.display === 'none') continue;
+      return r.cells[col] || null;
+    }
+  }
 
   // data-raw が無い場合のフォールバック: 表示HTMLから<br>を改行に戻したテキストを得る
   function cellRawText(cell) {
@@ -287,6 +339,7 @@
     const raw = src.replace(/<br\s*\/?>/gi, '\n');
     if (editing) editing.commit();
     editingCell = cell; // DOM変更(空にする)より先に立てて enhance を止める
+    setSelected(cell);
     send('edit-state', { active: true }); // ホストへ編集中を通知（再描画を保留させる）
 
     const savedHtml = cell.innerHTML;
@@ -334,6 +387,24 @@
       e.stopPropagation();
       if (e.key === 'Enter' && !e.shiftKey) finish(true);
       else if (e.key === 'Escape') finish(false);
+      else if (e.key === 'Tab') {
+        // 確定して隣接セルの編集へ（Shift+Tabは左、行末は次の行頭）
+        e.preventDefault();
+        let next = cellAt(cell, e.shiftKey ? -1 : 1, 0);
+        if (!next && !e.shiftKey) {
+          const table = cell.closest('table');
+          const rows = Array.from(table.rows);
+          const idx = rows.indexOf(cell.parentElement);
+          for (let i = idx + 1; i < rows.length; i++) {
+            const r = rows[i];
+            if (r.classList.contains('mdt-filter-row') || r.style.display === 'none') continue;
+            next = r.cells[0];
+            break;
+          }
+        }
+        finish(true);
+        if (next) startEdit(next);
+      }
     });
     input.addEventListener('blur', () => finish(true));
     input.addEventListener('click', (e) => e.stopPropagation());
@@ -470,6 +541,27 @@
     } else if (m.type === 'mdt-scrollTo') {
       const el = document.getElementById(m.id);
       if (el) el.scrollIntoView();
+    }
+  });
+
+  // セル選択・キーボード移動（スプレッドシート風）
+  // 未選択時は矢印キーを横取りせずページスクロールに任せる
+  document.addEventListener('keydown', (e) => {
+    const t = e.target;
+    if (t && t.closest && t.closest('input,textarea')) return;
+    if (selectedCell && !document.contains(selectedCell)) selectedCell = null;
+    const dirs = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
+    const d = dirs[e.key];
+    if (d) {
+      if (!selectedCell) return; // ページスクロール
+      e.preventDefault();
+      const next = cellAt(selectedCell, d[0], d[1]);
+      if (next) setSelected(next);
+      return;
+    }
+    if (e.key === 'Enter' && selectedCell && !editingCell) {
+      e.preventDefault();
+      startEdit(selectedCell);
     }
   });
 
