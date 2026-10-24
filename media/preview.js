@@ -299,9 +299,9 @@
       const out = v.replace(/\n/g, '<br>');
       cell.classList.remove('mdt-editing');
       if (commit && out !== src) {
-        // 再描画までの暫定表示（<br> は改行として見せる）
+        // 再描画までの暫定表示（改行は<br>として見せる）
         const esc = v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        cell.innerHTML = esc.replace(/&lt;br\s*\/?&gt;/gi, '<br>');
+        cell.innerHTML = esc.replace(/&lt;br\s*\/?&gt;/gi, '<br>').replace(/\n/g, '<br>');
         send('edit-cell', { line, col, text: out });
       } else {
         cell.innerHTML = savedHtml;
