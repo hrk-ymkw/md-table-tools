@@ -116,12 +116,15 @@
     return tb ? Array.from(tb.rows) : [];
   }
 
-  // セル→ソース行。td/tr の data-line 優先、なければ table起点+行オフセット
+  // セル→ソース行。ソートでDOM順がズレるため、enhance時（DOMがソース順の瞬間）に
+  // 各行へ data-mdt-line を刻印しておき、それを優先する
   function lineOf(cell) {
     let l = numAttr(cell, 'data-line');
     if (l >= 0) return l;
     const tr = cell.parentElement;
     l = numAttr(tr, 'data-line');
+    if (l >= 0) return l;
+    l = numAttr(tr, 'data-mdt-line');
     if (l >= 0) return l;
     const table = cell.closest('table');
     l = numAttr(table, 'data-line');
@@ -238,9 +241,14 @@
       table.tHead.appendChild(fr);
     }
 
-    // ソート解除時の復元用に現在順序を刻印
+    // 行の元情報を刻印。この時点のDOMはmorphdom直後＝ソース順なので
+    // 現在順位 = ソース上の位置として正しい（ソート適用前に必ず上書きする）
+    const baseLine = numAttr(table, 'data-line');
     dataRows(table).forEach((r, i) => {
-      if (r.dataset.mdtIdx === undefined) r.dataset.mdtIdx = i;
+      r.dataset.mdtIdx = i;
+      const trLine = numAttr(r, 'data-line');
+      r.dataset.mdtLine =
+        trLine >= 0 ? trLine : baseLine >= 0 ? baseLine + 2 + i : '';
     });
 
     applySort(table, s);
@@ -450,6 +458,18 @@
       const el = document.getElementById(m.id);
       if (el) el.scrollIntoView();
     }
+  });
+
+  // Ctrl+Z / Ctrl+Y: ソース文書の編集履歴を戻す/やり直す
+  // （入力欄の中はネイティブのundoに任せる）
+  document.addEventListener('keydown', (e) => {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey || !api) return;
+    const k = e.key.toLowerCase();
+    if (k !== 'z' && k !== 'y') return;
+    const t = e.target;
+    if (t && t.closest && t.closest('input,textarea')) return;
+    e.preventDefault();
+    send(k === 'z' ? (e.shiftKey ? 'redo' : 'undo') : 'redo', {});
   });
 
   // プレビュー再描画(morphdom)で注入UIが消えるので再適用する

@@ -556,6 +556,25 @@ async function applyOp(doc, op, p) {
     return;
   }
 
+  if (op === 'undo' || op === 'redo') {
+    // WorkspaceEdit 由来の変更は対象エディタのundo履歴に乗るので、
+    // 文書のエディタをアクティブにして標準の undo/redo を実行する
+    const ed = vscode.window.visibleTextEditors.find(
+      (e) => e.document.uri.toString() === doc.uri.toString()
+    );
+    await vscode.window.showTextDocument(doc, {
+      viewColumn: ed && ed.viewColumn,
+      preserveFocus: false,
+    });
+    await vscode.commands.executeCommand(op === 'undo' ? 'undo' : 'redo');
+    if (vscode.workspace.getConfiguration('mdTableTools').get('autoSave')) {
+      try {
+        await doc.save();
+      } catch {}
+    }
+    return;
+  }
+
   const edit = new vscode.WorkspaceEdit();
   const u = doc.uri;
 
