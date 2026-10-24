@@ -337,9 +337,18 @@ async function handleOpenLink(href, docUri) {
     return;
   }
   if (/^[a-z][a-z0-9+.-]*:/i.test(rel)) {
-    try {
-      await vscode.commands.executeCommand('vscode.open', vscode.Uri.parse(rel));
-    } catch {}
+    // 開いてよいスキームを限定（command:/javascript: 等は通さない）
+    if (/^(file|vscode|vscode-remote|vscode-vfs|vscode-userdata|mailto):/i.test(rel)) {
+      try {
+        if (/^mailto:/i.test(rel)) {
+          await vscode.env.openExternal(vscode.Uri.parse(rel));
+        } else {
+          await vscode.commands.executeCommand('vscode.open', vscode.Uri.parse(rel));
+        }
+      } catch {}
+    } else {
+      log('openLink blocked scheme: ' + rel.split(':', 1)[0]);
+    }
     return;
   }
   try {
@@ -517,6 +526,28 @@ async function handleOp(uri) {
   log('uri op done: ' + op);
 }
 
+// 外部入力(URIハンドラ/webview)からの編集要求を検証する。
+// 対象行が「区切り行を持つ実際の表」の中にあることを確認しないと、
+// | を含む普通の行や任意ファイルの行を書き換えられてしまう。
+function assertTableContext(doc, line) {
+  if (!Number.isInteger(line) || line < 0 || line >= doc.lineCount) {
+    throw new Error('invalid line');
+  }
+  if (doc.languageId !== 'markdown') throw new Error('not a markdown file');
+  if (!isTableLine(doc.lineAt(line).text)) throw new Error('not a table line');
+  const range = findTableRange(doc, line);
+  if (range.start + 1 >= doc.lineCount || !isDelimiterRow(doc.lineAt(range.start + 1).text)) {
+    throw new Error('not a table');
+  }
+  return range;
+}
+
+function assertCol(col, cells) {
+  if (!Number.isInteger(col) || col < 0 || col >= cells.length) {
+    throw new Error('cell not found');
+  }
+}
+
 async function applyOp(doc, op, p) {
   if (op === 'ping') {
     vscode.window.showInformationMessage('MD Table Tools: 接続OKです');
@@ -528,11 +559,15 @@ async function applyOp(doc, op, p) {
 
   switch (op) {
     case 'edit-cell': {
+      assertTableContext(doc, p.line);
       const lineText = doc.lineAt(p.line).text;
       const cells = splitTableRow(lineText);
-      if (p.col >= cells.length) throw new Error('cell not found');
+      assertCol(p.col, cells);
       const c = cells[p.col];
-      const safe = String(p.text).replace(/\|/g, '\\|');
+      const safe = String(p.text)
+        .slice(0, 10000)
+        .replace(/\|/g, '\\|')
+        .replace(/\r?\n/g, '<br>');
       let ins = ' ' + safe + ' ';
       const w = c.end - c.start;
       if (ins.length < w) ins = ins.padEnd(w);
@@ -540,6 +575,7 @@ async function applyOp(doc, op, p) {
       break;
     }
     case 'insert-row': {
+      assertTableContext(doc, p.line);
       const lineText = doc.lineAt(p.line).text;
       const cols = splitTableRow(lineText).length;
       let at = p.before ? p.line : p.line + 1;
@@ -555,7 +591,7 @@ async function applyOp(doc, op, p) {
       break;
     }
     case 'delete-row': {
-      const { start } = findTableRange(doc, p.line);
+      const { start } = assertTableContext(doc, p.line);
       if (p.line <= start + 1) throw new Error('ヘッダー行/区切り行は削除できません');
       const last = doc.lineCount - 1;
       const range =
@@ -566,7 +602,8 @@ async function applyOp(doc, op, p) {
       break;
     }
     case 'insert-col': {
-      const { start, end } = findTableRange(doc, p.line);
+      const { start, end } = assertTableContext(doc, p.line);
+      if (!Number.isInteger(p.col) || p.col < 0) throw new Error('cell not found');
       for (let l = start; l <= end; l++) {
         const text = doc.lineAt(l).text;
         const cells = splitTableRow(text);
@@ -593,9 +630,10 @@ async function applyOp(doc, op, p) {
       break;
     }
     case 'delete-col': {
-      const { start, end } = findTableRange(doc, p.line);
+      const { start, end } = assertTableContext(doc, p.line);
       const headerCells = splitTableRow(doc.lineAt(start).text);
       if (headerCells.length <= 1) throw new Error('最後の列は削除できません');
+      assertCol(p.col, headerCells);
       for (let l = start; l <= end; l++) {
         const text = doc.lineAt(l).text;
         const cells = splitTableRow(text);
