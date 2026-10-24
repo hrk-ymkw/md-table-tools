@@ -519,6 +519,21 @@ function findTableRange(doc, line) {
   return { start, end };
 }
 
+function linesOf(doc, range) {
+  const out = [];
+  for (let l = range.start; l <= range.end; l++) out.push(doc.lineAt(l).text);
+  return out;
+}
+
+// 表編集の独自undoスタック（文書URIごと）。エディタのundo履歴を使わず
+// WorkspaceEdit で静かに復元するため（フォーカスがちらつかない）
+const undoStacks = new Map();
+function stackFor(u) {
+  const k = u.toString();
+  if (!undoStacks.has(k)) undoStacks.set(k, { undo: [], redo: [] });
+  return undoStacks.get(k);
+}
+
 // ---------------------------------------------------------------------------
 // 編集操作
 // ---------------------------------------------------------------------------
@@ -564,18 +579,36 @@ async function applyOp(doc, op, p) {
   }
 
   if (op === 'undo' || op === 'redo') {
-    // WorkspaceEdit 由来の変更は対象エディタのundo履歴に乗るので、
-    // 文書のエディタをアクティブにして標準の undo/redo を実行する
-    const ed = vscode.window.visibleTextEditors.find(
-      (e) => e.document.uri.toString() === doc.uri.toString()
+    // 表編集のスナップショットで復元する独自undo。
+    // エディタのundo履歴に頼るとフォーカスがソースへ切り替わってちらつくため、
+    // WorkspaceEdit で直接復元する（スタックはプレビュー由来の編集のみ）
+    const st = stackFor(doc.uri);
+    const [src, dst] = op === 'undo' ? [st.undo, st.redo] : [st.redo, st.undo];
+    const ent = src.pop();
+    if (!ent) return; // 履歴なし
+    const want = op === 'undo' ? ent.before : ent.after;
+    const anchor = Math.min(ent.start, doc.lineCount - 1);
+    const cur = findTableRange(doc, anchor);
+    if (
+      !isTableLine(doc.lineAt(anchor).text) ||
+      cur.start + 1 >= doc.lineCount ||
+      !isDelimiterRow(doc.lineAt(cur.start + 1).text)
+    ) {
+      src.push(ent); // 戻せないので履歴は消さない
+      throw new Error('対象の表が見つかりません（文書が大きく変更されています）');
+    }
+    const curText = linesOf(doc, cur);
+    const edit2 = new vscode.WorkspaceEdit();
+    edit2.replace(
+      doc.uri,
+      new vscode.Range(cur.start, 0, cur.end, doc.lineAt(cur.end).text.length),
+      want.join('\n')
     );
-    await vscode.window.showTextDocument(doc, {
-      viewColumn: ed && ed.viewColumn,
-      preserveFocus: false,
-    });
-    await vscode.commands.executeCommand(op === 'undo' ? 'undo' : 'redo');
-    // undoのため一時的にエディタへフォーカスを渡したのでプレビューへ戻す
-    if (panel) panel.reveal();
+    if (!(await vscode.workspace.applyEdit(edit2))) {
+      src.push(ent);
+      throw new Error('編集の適用に失敗しました');
+    }
+    dst.push({ start: cur.start, before: curText, after: want });
     if (vscode.workspace.getConfiguration('mdTableTools').get('autoSave')) {
       try {
         await doc.save();
@@ -586,6 +619,17 @@ async function applyOp(doc, op, p) {
 
   const edit = new vscode.WorkspaceEdit();
   const u = doc.uri;
+  // 変更系opの前に表全体をスナップショット（undoスタック用）
+  let snapBefore = null;
+  if (
+    Number.isInteger(p.line) &&
+    p.line >= 0 &&
+    p.line < doc.lineCount &&
+    isTableLine(doc.lineAt(p.line).text)
+  ) {
+    const r = findTableRange(doc, p.line);
+    snapBefore = { start: r.start, lines: linesOf(doc, r) };
+  }
 
   switch (op) {
     case 'edit-cell': {
@@ -684,6 +728,19 @@ async function applyOp(doc, op, p) {
   const ok = await vscode.workspace.applyEdit(edit);
   log('applyEdit result=' + ok);
   if (!ok) throw new Error('編集の適用に失敗しました');
+
+  // undo履歴に記録（編集後の表をスナップしてredoに使う）
+  if (snapBefore) {
+    const st = stackFor(u);
+    const after = findTableRange(doc, snapBefore.start);
+    st.undo.push({
+      start: snapBefore.start,
+      before: snapBefore.lines,
+      after: linesOf(doc, after),
+    });
+    if (st.undo.length > 100) st.undo.shift();
+    st.redo = [];
+  }
 
   // 編集後にエディタを再表示して強制再描画（黒画面対策）
   for (const ed of vscode.window.visibleTextEditors) {
