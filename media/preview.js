@@ -263,7 +263,8 @@
     const line = lineOf(cell);
     if (line < 0) return;
     const col = colOf(cell);
-    const raw = cell.dataset.raw !== undefined ? cell.dataset.raw : cell.textContent;
+    const src = cell.dataset.raw !== undefined ? cell.dataset.raw : cell.textContent;
+    const raw = src.replace(/<br\s*\/?>/gi, '\n');
     if (editing) editing.commit();
 
     const savedHtml = cell.innerHTML;
@@ -287,11 +288,14 @@
       if (done) return;
       done = true;
       editing = null;
-      const v = input.value;
+      const v = input.value.replace(/\r\n/g, '\n');
+      const out = v.replace(/\n/g, '<br>');
       cell.classList.remove('mdt-editing');
-      if (commit && v !== raw) {
-        cell.textContent = v; // 再描画までの暫定表示
-        send('edit-cell', { line, col, text: v });
+      if (commit && out !== src) {
+        // 再描画までの暫定表示（<br> は改行として見せる）
+        const esc = v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        cell.innerHTML = esc.replace(/&lt;br\s*\/?&gt;/gi, '<br>');
+        send('edit-cell', { line, col, text: out });
       } else {
         cell.innerHTML = savedHtml;
       }
@@ -300,7 +304,7 @@
 
     input.addEventListener('keydown', (e) => {
       e.stopPropagation();
-      if (e.key === 'Enter') finish(true);
+      if (e.key === 'Enter' && !e.shiftKey) finish(true);
       else if (e.key === 'Escape') finish(false);
     });
     input.addEventListener('blur', () => finish(true));
