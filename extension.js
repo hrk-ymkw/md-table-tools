@@ -403,6 +403,10 @@ function registerScrollSync(context) {
   );
 }
 
+// 編集opを直列化する（連続クリック等で複数opが並走すると
+// WorkspaceEdit の適用が衝突して applyEdit=false になるため）
+let opTail = Promise.resolve();
+
 async function handleOpMsg(msg) {
   if (msg.op === 'ready') {
     log('ready');
@@ -419,7 +423,10 @@ async function handleOpMsg(msg) {
   }
   log('op=' + msg.op + ' ' + JSON.stringify(msg.p));
   const doc = await vscode.workspace.openTextDocument(vscode.Uri.parse(msg.d));
-  await applyOp(doc, msg.op, msg.p || {});
+  opTail = opTail
+    .catch(() => {}) // 前のopの失敗を引きずらずキューを継続
+    .then(() => applyOp(doc, msg.op, msg.p || {}));
+  await opTail;
   log('op done: ' + msg.op);
 }
 

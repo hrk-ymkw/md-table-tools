@@ -210,6 +210,10 @@
   // ---- table enhancement -----------------------------------------------------
 
   function enhance(table, idx) {
+    // 編集中セルを含む表は丸ごとスキップ:
+    // セルを空にしてtextareaを置いた直後に sort(行移動)/filter(非表示)/再刻印が
+    // 走ると textarea が blur して即コミット＆刻印がソート順位で腐敗する
+    if (editingCell && table.contains(editingCell)) return;
     if (!table.tHead || !table.tHead.rows.length) return;
     const s = st(idx);
     const headRow = table.tHead.rows[0];
@@ -264,6 +268,7 @@
   // ---- cell edit ---------------------------------------------------------------
 
   let editing = null;
+  let editingCell = null; // 編集中セル。この表の sort/filter/再刻印を停止するための目印
 
   // data-raw が無い場合のフォールバック: 表示HTMLから<br>を改行に戻したテキストを得る
   function cellRawText(cell) {
@@ -281,6 +286,7 @@
     const src = cell.dataset.raw !== undefined ? cell.dataset.raw : cellRawText(cell);
     const raw = src.replace(/<br\s*\/?>/gi, '\n');
     if (editing) editing.commit();
+    editingCell = cell; // DOM変更(空にする)より先に立てて enhance を止める
 
     const savedHtml = cell.innerHTML;
     cell.classList.add('mdt-editing');
@@ -303,6 +309,7 @@
       if (done) return;
       done = true;
       editing = null;
+      editingCell = null;
       const v = input.value.replace(/\r\n/g, '\n');
       const out = v.replace(/\n/g, '<br>');
       cell.classList.remove('mdt-editing');
