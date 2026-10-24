@@ -574,6 +574,8 @@ async function applyOp(doc, op, p) {
       preserveFocus: false,
     });
     await vscode.commands.executeCommand(op === 'undo' ? 'undo' : 'redo');
+    // undoのため一時的にエディタへフォーカスを渡したのでプレビューへ戻す
+    if (panel) panel.reveal();
     if (vscode.workspace.getConfiguration('mdTableTools').get('autoSave')) {
       try {
         await doc.save();
