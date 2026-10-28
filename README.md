@@ -2,6 +2,14 @@
 
 Markdownファイルを全画面プレビューしながら、表を直接編集できる拡張機能です。
 
+## インストール
+
+- **VS Code**: Marketplace から「Markdown Table Tools」を検索してインストール
+- **Windsurf / Devin Desktop 等**: Open VSX からインストール
+
+vsix から手動導入する場合は `npm install && npm run package` で生成し、
+「Install from VSIX」を実行してください。
+
 ## 使い方
 
 Markdownファイルを開いた状態で `Ctrl+Alt+V`（Mac: `Cmd+Alt+V`）を押すか、
@@ -36,6 +44,13 @@ Markdownファイルを開いた状態で `Ctrl+Alt+V`（Mac: `Cmd+Alt+V`）を�
 VS Code 系IDE（VS Code / Windsurf / Devin Desktop 等）を想定しています。
 Mermaid・数式・標準スタイルはIDE同梱のMarkdown関連拡張の資産を再利用するため、
 それらが同梱されていない環境では簡易表示になります。
+
+## リリース（メンテナー向け）
+
+1. `package.json` の `version` と `CHANGELOG.md` を更新してコミット
+2. `git tag vX.Y.Z && git push origin vX.Y.Z`
+3. GitHub Actions が VS Marketplace / Open VSX へ自動公開します
+   （要シークレット `VSCE_PAT` / `OVSX_PAT`）
 
 ## ライセンス
 
