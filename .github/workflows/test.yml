@@ -43,6 +43,11 @@ jobs:
         run: |
           npm run test:vsix -- extension.vsix 2>&1 | Tee-Object test-results/vsix.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: VS Code UI tests
+        shell: pwsh
+        run: |
+          npm run test:e2e 2>&1 | Tee-Object test-results/e2e.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Upload test logs
         if: always()
         uses: actions/upload-artifact@v4

@@ -29,6 +29,7 @@
   "scripts": {
     "test": "node --test test/unit/*.test.js",
     "test:integration": "node test/run-integration.js",
+    "test:e2e": "node test/e2e/run.js",
     "test:vsix": "node test/run-integration.js --vsix",
     "package": "vsce package",
     "publish:vsce": "vsce publish",
@@ -36,7 +37,8 @@
   },
   "devDependencies": {
     "@vscode/vsce": "4.0.0",
-    "ovsx": "1.3.0"
+    "ovsx": "1.3.0",
+    "playwright-core": "1.64.1"
   },
   "main": "./extension.js",
   "activationEvents": [

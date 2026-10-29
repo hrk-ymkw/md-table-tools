@@ -59,7 +59,7 @@ Mermaid・数式・標準スタイルはIDE同梱のMarkdown関連拡張の資�
 
 ## 開発・検証
 
-`npm test` で単体テスト、`npm run test:integration` で VS Code の Extension Host テストを実行できます。
+`npm test` で単体テスト、`npm run test:integration` で VS Code の Extension Host テスト、`npm run test:e2e` で実 VS Code の画面操作テストを実行できます。
 配布用 VSIX の確認方法と実画面の検証範囲は [検証記録](docs/verification.md) を参照してください。
 
 ## リリース（メンテナー向け）

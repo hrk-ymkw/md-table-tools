@@ -16,6 +16,7 @@
 | 外部リンク | サンプルの VS Code リンクをクリックし、ブラウザーで `code.visualstudio.com` が開くことを確認した。 |
 | Extension Host | セルの元データ、編集、履歴、競合、行列操作、自動保存を検証するテストを用意した。 |
 | VSIX | 分離した拡張フォルダーへインストールした配布物でも Extension Host テストを実行できる。 |
+| 実 VS Code の画面テスト | `npm run test:e2e` で編集・Tab・Undo/Redo・ソート・フィルタ・行列追加と削除・自動保存・外部変更との保存競合を確認する。テストは一時ファイルを使い、Markdown 全体の保存内容を比較する。 |
 
 画像は検証時の画面であり、後続の修正や他の環境の挙動を証明するものではない。
 
@@ -29,13 +30,11 @@
 
 ## 実行方法
 
-`npm test` は Node.js の単体テスト、`npm run test:integration` はインストール済み VS Code を使った Extension Host テストを実行する。`npm run package -- --out extension.vsix` の後に `npm run test:vsix -- extension.vsix` を実行すると、別の拡張フォルダーに VSIX をインストールして同じテストを行う。Windows では標準のインストール先を使い、別の場所にある場合は `VSCODE_BIN` に `Code.exe` のパスを指定する。テストは独立したユーザーデータと拡張フォルダーを使う。
+`npm test` は Node.js の単体テスト、`npm run test:integration` はインストール済み VS Code を使った Extension Host テストを実行する。`npm run package -- --out extension.vsix` の後に `npm run test:vsix -- extension.vsix` を実行すると、別の拡張フォルダーに VSIX をインストールして同じテストを行う。`npm run test:e2e` は開発版を独立した実 VS Code に読み込み、画面と一時ファイルの両方を検証する。失敗時は `test-results/` に画面画像とログを残す。Windows では標準のインストール先を使い、別の場所にある場合は `VSCODE_BIN` に `Code.exe` のパスを指定する。テストは独立したユーザーデータと拡張フォルダーを使う。
 
 ## 未完了
 
-- 実 IDE の画面操作を CI で再現する E2E テスト、スクリーンショットの自動取得、失敗時の画面証拠。
 - 内部リンクと相対リンク、列削除の実画面確認、および VSCodium・Cursor の比較。
 - GIF は実画面を15fpsで録画した動画から生成した。画面操作からの自動再生成と、各ストアでの表示確認は未実施。
-- 追加した GitHub Actions を GitHub 上で実行しての確認。
 
 したがって、この記録だけでは依頼された完了条件を満たしていない。
