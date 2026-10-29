@@ -7,7 +7,11 @@ on:
   workflow_dispatch:
 
 jobs:
+  verify:
+    uses: ./.github/workflows/test.yml
+
   publish:
+    needs: verify
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -31,7 +35,9 @@ jobs:
             exit 1
           fi
 
-      - run: npx vsce package -o extension.vsix
+      - uses: actions/download-artifact@v4
+        with:
+          name: verified-vsix
 
       - name: Publish to Visual Studio Marketplace
         run: npx vsce publish --packagePath extension.vsix -p "$VSCE_PAT" --skip-duplicate

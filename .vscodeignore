@@ -1,8 +1,12 @@
 .git/**
 .github/**
+.agents/**
+AGENTS.md
 .gitignore
 .vscodeignore
 *.vsix
 *.log
 node_modules/**
 tools/**
+test/**
+docs/**

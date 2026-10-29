@@ -1,0 +1,58 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install VS Code for tests
+        shell: pwsh
+        run: |
+          Invoke-WebRequest 'https://update.code.visualstudio.com/latest/win32-x64-archive/stable' -OutFile "$env:RUNNER_TEMP\vscode.zip"
+          Expand-Archive "$env:RUNNER_TEMP\vscode.zip" -DestinationPath "$env:RUNNER_TEMP\vscode"
+          "VSCODE_BIN=$env:RUNNER_TEMP\vscode\Code.exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Unit tests
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force test-results | Out-Null
+          npm test 2>&1 | Tee-Object test-results/unit.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Extension Host tests
+        shell: pwsh
+        run: |
+          npm run test:integration 2>&1 | Tee-Object test-results/integration.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Package VSIX
+        run: npx vsce package -o extension.vsix
+      - name: Install and test the packaged VSIX
+        shell: pwsh
+        run: |
+          npm run test:vsix -- extension.vsix 2>&1 | Tee-Object test-results/vsix.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs
+          path: test-results/
+          if-no-files-found: ignore
+      - name: Upload verified VSIX
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-vsix
+          path: extension.vsix
+          if-no-files-found: error

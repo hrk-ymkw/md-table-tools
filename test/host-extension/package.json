@@ -1,0 +1,7 @@
+{
+  "name": "md-table-tools-test-host",
+  "publisher": "test",
+  "version": "0.0.0",
+  "engines": { "vscode": "^1.74.0" },
+  "main": "./extension.js"
+}

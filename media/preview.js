@@ -221,6 +221,15 @@
     table.dataset.mdt = '1';
     table.classList.add('mdt');
 
+    // 列数が変わると以前の列番号は別の列を指すため、表示条件を解除する。
+    if (s.colCount !== undefined && s.colCount !== cols) {
+      s.sort = { col: -1, dir: 0 };
+      s.filters = {};
+      const oldFilterRow = table.tHead.querySelector('tr.mdt-filter-row');
+      if (oldFilterRow) oldFilterRow.remove();
+    }
+    s.colCount = cols;
+
     // フィルタ行（再描画で消えていたら再追加）
     let fr = table.tHead.querySelector('tr.mdt-filter-row');
     if (!fr) {
@@ -339,20 +348,18 @@
     return next;
   }
 
-  // data-raw が無い場合のフォールバック: 表示HTMLから<br>を改行に戻したテキストを得る
-  function cellRawText(cell) {
-    const tmp = document.createElement('div');
-    tmp.innerHTML = cell.innerHTML.replace(/<br\s*\/?>/gi, '\n');
-    return tmp.textContent;
-  }
-
   function startEdit(cell) {
     const tr = cell.parentElement;
     if (!tr || tr.classList.contains('mdt-filter-row')) return;
     const line = lineOf(cell);
     if (line < 0) return;
     const col = colOf(cell);
-    const src = cell.dataset.raw !== undefined ? cell.dataset.raw : cellRawText(cell);
+    // 表示文字列からMarkdownを再構成するとリンク等の書式を失うため編集しない。
+    if (cell.dataset.raw === undefined) {
+      if (api) api.postMessage({ op: 'edit-unavailable' });
+      return;
+    }
+    const src = cell.dataset.raw;
     const raw = src.replace(/<br\s*\/?>/gi, '\n');
     if (editing) editing.commit();
     editingCell = cell; // DOM変更(空にする)より先に立てて enhance を止める
@@ -393,7 +400,7 @@
         // 再描画までの暫定表示（改行は<br>として見せる）
         const esc = v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         cell.innerHTML = esc.replace(/&lt;br\s*\/?&gt;/gi, '<br>').replace(/\n/g, '<br>');
-        send('edit-cell', { line, col, text: out });
+        send('edit-cell', { line, col, text: out, original: src });
       } else {
         cell.innerHTML = savedHtml;
       }
@@ -433,17 +440,18 @@
     const inBody = tr.parentElement !== table.tHead;
     const line = lineOf(cell);
     const col = colOf(cell);
+    const expectedTable = table.dataset.mdtSource;
 
     const items = [];
     items.push({ label: 'セルを編集', fn: () => startEdit(cell) });
     if (inBody) {
-      items.push({ label: '行を上に追加', fn: () => send('insert-row', { line, before: true }) });
-      items.push({ label: '行を下に追加', fn: () => send('insert-row', { line, before: false }) });
-      items.push({ label: '行を削除', fn: () => send('delete-row', { line }) });
+      items.push({ label: '行を上に追加', fn: () => send('insert-row', { line, before: true, expectedTable }) });
+      items.push({ label: '行を下に追加', fn: () => send('insert-row', { line, before: false, expectedTable }) });
+      items.push({ label: '行を削除', fn: () => send('delete-row', { line, expectedTable }) });
     }
-    items.push({ label: '列を左に追加', fn: () => send('insert-col', { line, col, before: true }) });
-    items.push({ label: '列を右に追加', fn: () => send('insert-col', { line, col, before: false }) });
-    items.push({ label: '列を削除', fn: () => send('delete-col', { line, col }) });
+    items.push({ label: '列を左に追加', fn: () => send('insert-col', { line, col, before: true, expectedTable }) });
+    items.push({ label: '列を右に追加', fn: () => send('insert-col', { line, col, before: false, expectedTable }) });
+    items.push({ label: '列を削除', fn: () => send('delete-col', { line, col, expectedTable }) });
     items.push({ label: '接続テスト', fn: () => send('ping', {}) });
 
     menu = document.createElement('div');

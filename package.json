@@ -15,7 +15,7 @@
     "sort",
     "filter"
   ],
-  "version": "0.0.4",
+  "version": "0.0.5",
   "publisher": "hrk-ymkw",
   "license": "MIT",
   "icon": "images/icon.png",
@@ -27,6 +27,9 @@
     "vscode": "^1.74.0"
   },
   "scripts": {
+    "test": "node --test test/unit/*.test.js",
+    "test:integration": "node test/run-integration.js",
+    "test:vsix": "node test/run-integration.js --vsix",
     "package": "vsce package",
     "publish:vsce": "vsce publish",
     "publish:ovsx": "ovsx publish"

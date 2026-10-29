@@ -425,6 +425,7 @@ let opTail = Promise.resolve();
 let cellEditing = false;
 
 async function handleOpMsg(msg) {
+  if (!msg || typeof msg !== 'object' || typeof msg.op !== 'string') throw new Error('invalid message');
   if (msg.op === 'ready') {
     log('ready');
     await sendUpdate();
@@ -438,12 +439,20 @@ async function handleOpMsg(msg) {
     log('[webview]', msg.text);
     return;
   }
+  if (msg.op === 'edit-unavailable') {
+    vscode.window.showWarningMessage('元のMarkdownを取得できないため、セルの編集を停止しました。');
+    return;
+  }
   if (msg.op === 'edit-state') {
     cellEditing = !!(msg.p && msg.p.active);
     if (!cellEditing && panel) sendUpdate(); // 編集中に保留した分をまとめて流す
     return;
   }
-  log('op=' + msg.op + ' ' + JSON.stringify(msg.p));
+  if (!panelDocUri || typeof msg.d !== 'string' || msg.d !== panelDocUri.toString()) {
+    throw new Error('プレビューの文書が変更されています');
+  }
+  if (!msg.p || typeof msg.p !== 'object' || Array.isArray(msg.p)) throw new Error('invalid payload');
+  log('op=' + msg.op);
   const doc = await vscode.workspace.openTextDocument(vscode.Uri.parse(msg.d));
   opTail = opTail
     .catch(() => {}) // 前のopの失敗を引きずらずキューを継続
@@ -458,10 +467,10 @@ async function handleOpMsg(msg) {
 
 function extendMarkdownIt(md) {
   let srcLines = [];
-  const origRender = md.render.bind(md);
-  md.render = (text, env) => {
+  const origParse = md.parse.bind(md);
+  md.parse = (text, env) => {
     srcLines = text.split(/\r?\n/);
-    return origRender(text, env);
+    return origParse(text, env);
   };
 
   const prevTable =
@@ -469,6 +478,10 @@ function extendMarkdownIt(md) {
     ((tokens, idx, opts, env, self) => self.renderToken(tokens, idx, opts));
   md.renderer.rules.table_open = (tokens, idx, opts, env, self) => {
     tokens[idx].attrSet('data-mdt-scheme', vscode.env.uriScheme || 'vscode');
+    const map = tokens[idx].map;
+    if (map && map[0] >= 0 && map[1] <= srcLines.length) {
+      tokens[idx].attrSet('data-mdt-source', srcLines.slice(map[0], map[1]).join('\n'));
+    }
     return prevTable(tokens, idx, opts, env, self);
   };
 
@@ -505,7 +518,8 @@ function extendMarkdownIt(md) {
 function splitTableRow(text) {
   const cells = [];
   const n = text.length;
-  let i = text[0] === '|' ? 1 : 0;
+  const leadingPipe = text.match(/^ {0,3}\|/);
+  let i = leadingPipe ? leadingPipe[0].length : 0;
   let start = i;
   for (; i < n; i++) {
     const c = text[i];
@@ -518,7 +532,7 @@ function splitTableRow(text) {
       start = i + 1;
     }
   }
-  if (start < n || cells.length === 0) {
+  if ((start < n && text.slice(start).trim() !== '') || cells.length === 0) {
     cells.push({ start, end: n, text: text.slice(start, n) });
   }
   return cells;
@@ -552,7 +566,7 @@ function linesOf(doc, range) {
 const undoStacks = new Map();
 function stackFor(u) {
   const k = u.toString();
-  if (!undoStacks.has(k)) undoStacks.set(k, { undo: [], redo: [] });
+  if (!undoStacks.has(k)) undoStacks.set(k, { undo: [], redo: [], version: undefined });
   return undoStacks.get(k);
 }
 
@@ -572,7 +586,7 @@ async function handleOp(uri) {
   const p = JSON.parse(q.get('p') || '{}');
   const op = uri.path.replace(/^\//, '');
   if (!URI_OPS.has(op)) throw new Error('op not allowed via uri: ' + op);
-  log('uri op=' + op + ' ' + JSON.stringify(p));
+  log('uri op=' + op);
   await applyOp(doc, op, p);
   log('uri op done: ' + op);
 }
@@ -585,10 +599,21 @@ function assertTableContext(doc, line) {
     throw new Error('invalid line');
   }
   if (doc.languageId !== 'markdown') throw new Error('not a markdown file');
+  let fence = null;
+  for (let i = 0; i <= line; i++) {
+    const match = doc.lineAt(i).text.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+    if (!match) continue;
+    if (!fence) fence = { char: match[1][0], length: match[1].length };
+    else if (match[1][0] === fence.char && match[1].length >= fence.length && /^\s*$/.test(match[2])) fence = null;
+  }
+  if (fence) throw new Error('コードブロック内は編集できません');
   if (!isTableLine(doc.lineAt(line).text)) throw new Error('not a table line');
   const range = findTableRange(doc, line);
   if (range.start + 1 >= doc.lineCount || !isDelimiterRow(doc.lineAt(range.start + 1).text)) {
     throw new Error('not a table');
+  }
+  for (let i = range.start; i <= range.end; i++) {
+    if (/^(?: {4}|\t)/.test(doc.lineAt(i).text)) throw new Error('インデントされた行を含むため、編集を停止しました');
   }
   return range;
 }
@@ -599,7 +624,18 @@ function assertCol(col, cells) {
   }
 }
 
+async function saveIfConfigured(doc) {
+  if (!vscode.workspace.getConfiguration('mdTableTools').get('autoSave')) return;
+  try {
+    if (await doc.save()) return;
+  } catch (e) {
+    log('save error: ' + e.message);
+  }
+  vscode.window.showWarningMessage('自動保存できませんでした。文書の状態を確認して保存してください。');
+}
+
 async function applyOp(doc, op, p) {
+  if (!p || typeof p !== 'object' || Array.isArray(p)) throw new Error('invalid payload');
   if (op === 'ping') {
     vscode.window.showInformationMessage('MD Table Tools: 接続OKです');
     return;
@@ -610,6 +646,9 @@ async function applyOp(doc, op, p) {
     // エディタのundo履歴に頼るとフォーカスがソースへ切り替わってちらつくため、
     // WorkspaceEdit で直接復元する（スタックはプレビュー由来の編集のみ）
     const st = stackFor(doc.uri);
+    if (st.version !== undefined && st.version !== doc.version) {
+      throw new Error('文書が変更されたため、履歴の復元を停止しました');
+    }
     const [src, dst] = op === 'undo' ? [st.undo, st.redo] : [st.redo, st.undo];
     const ent = src.pop();
     if (!ent) return; // 履歴なし
@@ -625,6 +664,11 @@ async function applyOp(doc, op, p) {
       throw new Error('対象の表が見つかりません（文書が大きく変更されています）');
     }
     const curText = linesOf(doc, cur);
+    const expected = op === 'undo' ? ent.after : ent.before;
+    if (cur.start !== ent.start || curText.join('\n') !== expected.join('\n')) {
+      src.push(ent);
+      throw new Error('表が変更されたため、履歴の復元を停止しました');
+    }
     const edit2 = new vscode.WorkspaceEdit();
     edit2.replace(
       doc.uri,
@@ -635,17 +679,22 @@ async function applyOp(doc, op, p) {
       src.push(ent);
       throw new Error('編集の適用に失敗しました');
     }
-    dst.push({ start: cur.start, before: curText, after: want });
-    if (vscode.workspace.getConfiguration('mdTableTools').get('autoSave')) {
-      try {
-        await doc.save();
-      } catch {}
-    }
+    dst.push(ent);
+    st.version = doc.version;
+    await saveIfConfigured(doc);
     return;
+  }
+
+  if (['insert-row', 'delete-row', 'insert-col', 'delete-col'].includes(op)) {
+    const range = assertTableContext(doc, p.line);
+    if (typeof p.expectedTable !== 'string' || linesOf(doc, range).join('\n') !== p.expectedTable) {
+      throw new Error('表が変更されたため、操作を停止しました');
+    }
   }
 
   const edit = new vscode.WorkspaceEdit();
   const u = doc.uri;
+  const versionBefore = doc.version;
   // 変更系opの前に表全体をスナップショット（undoスタック用）
   let snapBefore = null;
   if (
@@ -665,10 +714,12 @@ async function applyOp(doc, op, p) {
       const cells = splitTableRow(lineText);
       assertCol(p.col, cells);
       const c = cells[p.col];
-      const safe = String(p.text)
-        .slice(0, 10000)
-        .replace(/\|/g, '\\|')
-        .replace(/\r?\n/g, '<br>');
+      if (typeof p.text !== 'string' || typeof p.original !== 'string') throw new Error('invalid cell text');
+      if (p.text.length > 10000) throw new Error('セルの内容が長すぎるため、編集を停止しました');
+      if (c.text.trim() !== p.original) throw new Error('セルが変更されたため、編集を停止しました');
+      const safe = p.text
+        .replace(/(\\*)\|/g, (_, slashes) => slashes + (slashes.length % 2 ? '' : '\\') + '|')
+        .replace(/\r\n?|\n/g, '<br>');
       let ins = ' ' + safe + ' ';
       const w = c.end - c.start;
       if (ins.length < w) ins = ins.padEnd(w);
@@ -681,7 +732,7 @@ async function applyOp(doc, op, p) {
       const cols = splitTableRow(lineText).length;
       let at = p.before ? p.line : p.line + 1;
       const { start } = findTableRange(doc, p.line);
-      if (at <= start + 1 && !p.before) at = start + 2;
+      if (at <= start + 1) at = start + 2;
       const blank = '| ' + Array(cols).fill(' ').join(' | ') + ' |';
       if (at >= doc.lineCount) {
         const lastLine = doc.lineAt(doc.lineCount - 1);
@@ -704,7 +755,7 @@ async function applyOp(doc, op, p) {
     }
     case 'insert-col': {
       const { start, end } = assertTableContext(doc, p.line);
-      if (!Number.isInteger(p.col) || p.col < 0) throw new Error('cell not found');
+      assertCol(p.col, splitTableRow(doc.lineAt(start).text));
       for (let l = start; l <= end; l++) {
         const text = doc.lineAt(l).text;
         const cells = splitTableRow(text);
@@ -759,6 +810,10 @@ async function applyOp(doc, op, p) {
   // undo履歴に記録（編集後の表をスナップしてredoに使う）
   if (snapBefore) {
     const st = stackFor(u);
+    if (st.version !== undefined && st.version !== versionBefore) {
+      st.undo = [];
+      st.redo = [];
+    }
     const after = findTableRange(doc, snapBefore.start);
     st.undo.push({
       start: snapBefore.start,
@@ -767,6 +822,7 @@ async function applyOp(doc, op, p) {
     });
     if (st.undo.length > 100) st.undo.shift();
     st.redo = [];
+    st.version = doc.version;
   }
 
   // 編集後にエディタを再表示して強制再描画（黒画面対策）
@@ -782,11 +838,7 @@ async function applyOp(doc, op, p) {
     }
   }
 
-  if (vscode.workspace.getConfiguration('mdTableTools').get('autoSave')) {
-    try {
-      await doc.save();
-    } catch {}
-  }
+  await saveIfConfigured(doc);
 }
 
-module.exports = { activate, deactivate };
+module.exports = { activate, deactivate, _test: { splitTableRow, isDelimiterRow, assertTableContext, applyOp, handleOpMsg } };
