@@ -9,4 +9,5 @@ AGENTS.md
 node_modules/**
 tools/**
 test/**
+test-results/**
 docs/**
