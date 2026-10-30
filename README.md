@@ -64,10 +64,7 @@ Mermaid・数式・標準スタイルはIDE同梱のMarkdown関連拡張の資�
 
 ## リリース（メンテナー向け）
 
-1. `package.json` の `version` と `CHANGELOG.md` を更新してコミット
-2. `git tag vX.Y.Z && git push origin vX.Y.Z`
-3. GitHub Actions が VS Marketplace / Open VSX へ自動公開します
-   （要シークレット `VSCE_PAT` / `OVSX_PAT`）
+利用者の承認後、バージョンと変更履歴を更新し、対応するタグを push します。GitHub Actions はテストと VSIX 検証の後に両ストアへ公開し、GitHub Release を作成します。必要なシークレットと失敗時の対応は[公開手順](https://github.com/hrk-ymkw/md-table-tools/blob/main/docs/release.md)を参照してください。
 
 ## ライセンス
 
