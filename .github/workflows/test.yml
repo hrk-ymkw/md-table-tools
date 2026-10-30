@@ -7,6 +7,22 @@ on:
   workflow_call:
 
 jobs:
+  demo-gifs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+      - name: Test GIF quality checks
+        run: python3 -m unittest discover -s test/demo -v
+      - name: Check demo GIFs
+        run: python3 tools/check-demo-gifs.py images/demo-edit.gif images/demo-operations.gif images/demo-preview.gif
+
   verify:
     runs-on: windows-latest
     timeout-minutes: 25
