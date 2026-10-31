@@ -16,10 +16,17 @@ async function run() {
     catch (e) { results.push(`FAIL ${name}: ${e.stack}`); }
   }
   await vscode.workspace.getConfiguration('mdTableTools').update('autoSave', false, vscode.ConfigurationTarget.Global);
+  await check('messages follow the VS Code display language', async () => {
+    const doc = await vscode.workspace.openTextDocument({ language: 'markdown', content: '| H |\n| --- |\n| a |' });
+    const expected = /^ja(?:-|$)/i.test(vscode.env.language)
+      ? 'セルが変更されたため、編集を停止しました' : 'Editing stopped because the cell has changed.';
+    await assert.rejects(applyOp(doc, 'edit-cell', { line: 2, col: 0, text: 'b', original: 'stale' }), { message: expected });
+  });
   await check('Markdown renderer preserves raw cell source', async () => {
     const html = await vscode.commands.executeCommand('markdown.api.render', '| H |\n| --- |\n| [link](a) |');
     assert.match(html, /data-raw="\[link\]\(a\)"/, html);
     assert.match(html, /data-mdt-source=/, html);
+    assert.ok(html.includes(`data-mdt-language="${/^ja(?:-|$)/i.test(vscode.env.language) ? 'ja' : 'en'}"`), html);
   });
   await check('edit, undo and redo preserve surrounding Markdown', async () => {
     const text = 'Before **bold**\n\n| Name | Value |\n| --- | --- |\n| [link](a) | x |\n\nAfter';

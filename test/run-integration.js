@@ -26,7 +26,7 @@ if (vsixMode) {
   if (install.error || install.status !== 0) throw install.error || new Error('VSIX installation failed');
 }
 const args = [
-  '--disable-gpu', '--no-sandbox', '--skip-welcome', '--skip-release-notes', '--new-window', '--wait',
+  `--locale=${process.env.MDT_TEST_LOCALE || 'en'}`, '--disable-gpu', '--no-sandbox', '--skip-welcome', '--skip-release-notes', '--new-window', '--wait',
   `--user-data-dir=${path.join(temp, 'user')}`, `--extensions-dir=${extensionsDir}`,
   `--extensionDevelopmentPath=${vsixMode ? path.join(__dirname, 'host-extension') : root}`,
   `--extensionTestsPath=${path.join(__dirname, 'integration')}`,

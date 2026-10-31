@@ -6,6 +6,12 @@
   if (window.__mdt) return;
   window.__mdt = true;
 
+  function t(key, ...args) {
+    const table = document.querySelector('table[data-mdt-language]');
+    const locale = table ? table.dataset.mdtLanguage : document.documentElement.lang;
+    return window.mdtI18n.createTranslator(locale)(key, ...args);
+  }
+
   const EXT_ID = 'hrk-ymkw.md-table-tools'; // publisher.name (URI fallback 用)
   const states = new Map(); // tableIndex -> { sort:{col,dir}, filters:[], origRows:[] }
 
@@ -240,6 +246,7 @@
         const inp = document.createElement('input');
         inp.className = 'mdt-filter';
         inp.type = 'text';
+        inp.setAttribute('aria-label', t('filterColumn', c + 1));
         inp.dataset.col = c;
         inp.value = s.filters[c] || '';
         inp.addEventListener('input', () => {
@@ -443,16 +450,16 @@
     const expectedTable = table.dataset.mdtSource;
 
     const items = [];
-    items.push({ label: 'セルを編集', fn: () => startEdit(cell) });
+    items.push({ label: t('editCell'), fn: () => startEdit(cell) });
     if (inBody) {
-      items.push({ label: '行を上に追加', fn: () => send('insert-row', { line, before: true, expectedTable }) });
-      items.push({ label: '行を下に追加', fn: () => send('insert-row', { line, before: false, expectedTable }) });
-      items.push({ label: '行を削除', fn: () => send('delete-row', { line, expectedTable }) });
+      items.push({ label: t('insertRowAbove'), fn: () => send('insert-row', { line, before: true, expectedTable }) });
+      items.push({ label: t('insertRowBelow'), fn: () => send('insert-row', { line, before: false, expectedTable }) });
+      items.push({ label: t('deleteRow'), fn: () => send('delete-row', { line, expectedTable }) });
     }
-    items.push({ label: '列を左に追加', fn: () => send('insert-col', { line, col, before: true, expectedTable }) });
-    items.push({ label: '列を右に追加', fn: () => send('insert-col', { line, col, before: false, expectedTable }) });
-    items.push({ label: '列を削除', fn: () => send('delete-col', { line, col, expectedTable }) });
-    items.push({ label: '接続テスト', fn: () => send('ping', {}) });
+    items.push({ label: t('insertColumnLeft'), fn: () => send('insert-col', { line, col, before: true, expectedTable }) });
+    items.push({ label: t('insertColumnRight'), fn: () => send('insert-col', { line, col, before: false, expectedTable }) });
+    items.push({ label: t('deleteColumn'), fn: () => send('delete-col', { line, col, expectedTable }) });
+    items.push({ label: t('testConnection'), fn: () => send('ping', {}) });
 
     menu = document.createElement('div');
     menu.className = 'mdt-menu';

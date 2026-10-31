@@ -1,0 +1,6 @@
+{
+  "extension.description": "Markdownテーブルを直接編集・ソート・絞り込みできるプレビューパネル",
+  "command.openTablePreview": "テーブルプレビューを開く",
+  "config.openIn": "プレビューパネルの開き方 (active=全画面, beside=右側に分割)",
+  "config.autoSave": "編集操作のたびにファイルへ自動保存する"
+}

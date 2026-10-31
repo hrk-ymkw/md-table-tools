@@ -1,7 +1,7 @@
 {
   "name": "md-table-tools",
   "displayName": "Markdown Table Tools",
-  "description": "Markdownテーブルを直接編集・ソート・絞り込みできるプレビューパネル",
+  "description": "%extension.description%",
   "categories": [
     "Visualization",
     "Formatters",
@@ -48,7 +48,7 @@
     "commands": [
       {
         "command": "md-table-tools.openTablePreview",
-        "title": "テーブルプレビューを開く",
+        "title": "%command.openTablePreview%",
         "icon": "$(table)"
       }
     ],
@@ -83,16 +83,17 @@
           "type": "string",
           "enum": ["active", "beside"],
           "default": "active",
-          "description": "プレビューパネルの開き方 (active=全画面, beside=右側に分割)"
+          "description": "%config.openIn%"
         },
         "mdTableTools.autoSave": {
           "type": "boolean",
           "default": true,
-          "description": "編集操作のたびにファイルへ自動保存する"
+          "description": "%config.autoSave%"
         }
       }
     },
     "markdown.previewScripts": [
+      "./media/i18n.js",
       "./media/preview.js"
     ],
     "markdown.previewStyles": [

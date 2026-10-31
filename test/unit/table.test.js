@@ -32,11 +32,11 @@ test('rejects edits outside a Markdown table', () => {
   assert.throws(() => assertTableContext(doc('a | b\nnot a delimiter'), 0), /not a table/);
   assert.throws(() => assertTableContext(doc('| h |\n| --- |', 'plaintext'), 0), /not a markdown/);
   assert.throws(() => assertTableContext(doc('| h |\n| --- |'), -1), /invalid line/);
-  assert.throws(() => assertTableContext(doc('```md\n| h |\n| --- |\n| x |\n```'), 3), /コードブロック/);
-  assert.throws(() => assertTableContext(doc('| h |\n| --- |\n    | code |'), 0), /インデント/);
+  assert.throws(() => assertTableContext(doc('```md\n| h |\n| --- |\n| x |\n```'), 3), /code block/);
+  assert.throws(() => assertTableContext(doc('| h |\n| --- |\n    | code |'), 0), /indented/);
 });
 
 test('rejects malformed or unbound webview messages', async () => {
   await assert.rejects(handleOpMsg(null), /invalid message/);
-  await assert.rejects(handleOpMsg({ op: 'edit-cell', d: 'file:///other', p: {} }), /文書が変更/);
+  await assert.rejects(handleOpMsg({ op: 'edit-cell', d: 'file:///other', p: {} }), /document has changed/);
 });

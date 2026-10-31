@@ -1,0 +1,6 @@
+{
+  "extension.description": "Edit, sort, and filter Markdown tables directly in a preview panel",
+  "command.openTablePreview": "Open Table Preview",
+  "config.openIn": "Where to open the preview panel (active: current editor group; beside: split to the right)",
+  "config.autoSave": "Automatically save the file after each edit"
+}

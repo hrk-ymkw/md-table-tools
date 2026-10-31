@@ -8,6 +8,10 @@ const path = require('node:path');
 const net = require('node:net');
 const { spawn, spawnSync } = require('node:child_process');
 const { chromium } = require('playwright-core');
+const locale = process.env.MDT_TEST_LOCALE || 'en';
+const i18n = require('../../media/i18n');
+const t = i18n.createTranslator(locale);
+const commandTitle = require(i18n.language(locale) === 'ja' ? '../../package.nls.ja.json' : '../../package.nls.json')['command.openTablePreview'];
 
 const root = path.resolve(__dirname, '../..');
 const results = path.join(root, 'test-results');
@@ -45,7 +49,7 @@ async function freePort() {
 async function main() {
   const port = await freePort();
   const child = spawn(executable, [
-    `--remote-debugging-port=${port}`, '--disable-gpu', '--skip-welcome', '--skip-release-notes',
+    `--remote-debugging-port=${port}`, `--locale=${locale}`, '--disable-gpu', '--skip-welcome', '--skip-release-notes',
     '--disable-workspace-trust', '--new-window', `--user-data-dir=${path.join(temp, 'user')}`,
     `--extensions-dir=${path.join(temp, 'extensions')}`, `--extensionDevelopmentPath=${root}`, file,
   ], { stdio: ['ignore', 'pipe', 'pipe'] });
@@ -65,8 +69,8 @@ async function main() {
     await editor.waitFor({ state: 'visible', timeout: 60000 });
     await editor.click({ position: { x: 80, y: 80 } });
     await page.keyboard.press('Control+Shift+p');
-    await page.keyboard.insertText('テーブルプレビューを開く');
-    await page.getByText('テーブルプレビューを開く', { exact: false }).first().waitFor({ timeout: 30000 });
+    await page.keyboard.insertText(commandTitle);
+    await page.getByText(commandTitle, { exact: false }).first().waitFor({ timeout: 30000 });
     await page.keyboard.press('Enter');
     let frame;
     await until(async () => {
@@ -108,21 +112,21 @@ async function main() {
     console.log('PASS sort and filter are display-only');
 
     await cell(0, 0).click({ button: 'right' });
-    await frame.getByRole('button', { name: '行を下に追加' }).click();
+    await frame.getByRole('button', { name: t('insertRowBelow') }).click();
     await until(async () => (await rows.count()) === 4, 'insert row');
     await until(() => saved().split('\n').some((line) => /^\|\s*\|\s*\|\s*\|$/.test(line)), 'saved empty row');
     await cell(0, 0).click({ button: 'right' });
-    await frame.getByRole('button', { name: '列を右に追加' }).click();
+    await frame.getByRole('button', { name: t('insertColumnRight') }).click();
     await until(async () => (await table.locator('thead tr').first().locator('th').count()) === 4, 'insert column');
     await until(() => /^\| 品目 \|\s*\| 数量 \| 状態 \|$/m.test(saved()), 'saved inserted column');
     assert.ok(saved().startsWith(initial.slice(0, initial.indexOf('| 品目 |'))));
     assert.ok(saved().endsWith(initial.slice(initial.indexOf('\n## Mermaid'))));
     const emptyRow = rows.filter({ has: frame.locator('td') }).filter({ hasText: /^\s*$/ });
     await emptyRow.locator('td').first().click({ button: 'right' });
-    await frame.getByRole('button', { name: '行を削除' }).click();
+    await frame.getByRole('button', { name: t('deleteRow') }).click();
     await until(async () => (await rows.count()) === 3, 'delete row');
     await cell(0, 1).click({ button: 'right' });
-    await frame.getByRole('button', { name: '列を削除' }).click();
+    await frame.getByRole('button', { name: t('deleteColumn') }).click();
     await until(async () => (await table.locator('thead tr').first().locator('th').count()) === 3, 'delete column');
     await expectSaved(edited);
     console.log('PASS row and column insertion and deletion preserve surrounding Markdown');
@@ -138,7 +142,7 @@ async function main() {
     await frame.locator('textarea.mdt-cell-input').press('Enter');
     // Depending on the watcher timing, the extension may reject a stale cell
     // or VS Code may refuse to save over a newer file. Both must warn the user.
-    await page.getByText(/セルが変更されたため、編集を停止しました|自動保存できませんでした/).first().waitFor({ timeout: 20000 });
+    await page.getByText(new RegExp([t('cellChanged'), t('saveFailed')].map((text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'))).first().waitFor({ timeout: 20000 });
     assert.equal(saved(), external, 'a conflicting external edit must survive');
     console.log('PASS conflicting external edit is not overwritten');
   } catch (error) {
